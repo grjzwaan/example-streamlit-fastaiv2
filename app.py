@@ -87,9 +87,10 @@ def variations(df, column, steps=np.linspace(-5, 5, num=500)):
     variations = pd.DataFrame({column: steps+current_value})
     result = result.drop(columns=[column])
     result = cartesian_product(result, variations)
-    return result
+    return result, current_value
 
-sensitivity_df = variations(test_cp.iloc[[focus_slider]], column=feature, steps=np.linspace(variation[0], variation[1], num=100))
+
+sensitivity_df, current_value = variations(test_cp.iloc[[focus_slider]], column=feature, steps=np.linspace(variation[0], variation[1], num=100))
 dl = learn.dls.test_dl(sensitivity_df)
 preds, targets = learn.get_preds(dl=dl)
 sensitivity_df['Appliances_pred'] = preds.numpy()
@@ -100,7 +101,14 @@ def sens_chart(sensitivity_df):
         y=alt.Y('Appliances_pred'),
         # color=alt.Y('Appliances_pred', scale=alt.Scale(domain=(55,70)))
     )
-    return sens
+
+    focus = alt.Chart(pd.DataFrame({'f': [current_value]})).mark_rule(color='red', strokeWidth=3).encode(
+        x="f:Q",
+        size=alt.value(3),
+        color=alt.ColorValue('red')
+    )
+
+    return sens + focus
 
 
 def charts(focus):
