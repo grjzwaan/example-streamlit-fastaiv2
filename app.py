@@ -39,7 +39,7 @@ def train(data, valid_idx):
                   'T8', 'RH_8', 'T9', 'RH_9', 'T_out', 'Press_mm_hg', 'RH_out', 'Windspeed', 'Visibility', 'Tdewpoint'],
       procs=[Categorify, FillMissing, Normalize])
 
-    max_epochs = 2
+    max_epochs = 200
     learn = tabular_learner(dls, layers=[100, 100, 100, 50, 50], metrics=mse)
     learn.fit_one_cycle(max_epochs)
 
@@ -80,10 +80,11 @@ def cartesian_product(left, right):
        left.assign(key=1).merge(right.assign(key=1), on='key').drop('key', 1))
 
 
-def variations(df, column, steps=np.linspace(-5, 5, num=100)):
+def variations(df, column, steps=np.linspace(-5, 5, num=500)):
     """ Expects a single row"""
     result = df.copy()
-    variations = pd.DataFrame({column: steps})
+    current_value = df[column].iloc[0]
+    variations = pd.DataFrame({column: steps+current_value})
     result = result.drop(columns=[column])
     result = cartesian_product(result, variations)
     return result
