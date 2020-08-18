@@ -39,7 +39,7 @@ def train(data, valid_idx):
                   'T8', 'RH_8', 'T9', 'RH_9', 'T_out', 'Press_mm_hg', 'RH_out', 'Windspeed', 'Visibility', 'Tdewpoint'],
       procs=[Categorify, FillMissing, Normalize])
 
-    max_epochs = 200
+    max_epochs = 2
     learn = tabular_learner(dls, layers=[100, 100, 100, 50, 50], metrics=mse)
     learn.fit_one_cycle(max_epochs)
 
@@ -63,8 +63,13 @@ test_cp['Appliances_pred'] = preds.numpy()
 chart_df = test_cp[['date', 'Appliances', 'Appliances_pred']].melt('date')
 
 # UI
+st.sidebar.title("Options")
+st.sidebar.markdown("Choose the feature you want to analyse the sensitivity for and within what variation.")
+feature = st.sidebar.selectbox('Feature', ['T1', 'T2', 'RH_8', 'RH_2', 'Windspeed'])
+variation = st.sidebar.slider('Range', min_value=-5.0, max_value=5.0, value=(-1.0, 1.0), step=0.1)
+
 st.title("Analysis")
-st.text("Choose a point in time to see the sensitivity of the consumed power vs the temperature T1. ")
+st.markdown(f"Choose a point in time to see the sensitivity of the consumed power vs the temperature {feature}. ")
 focus_slider = st.slider('Timepoint', value=(nr_samples//2), min_value=0, max_value=nr_samples)
 st.text("Predictions")
 focus = chart_df.iloc[focus_slider]['date']
@@ -75,7 +80,7 @@ def cartesian_product(left, right):
        left.assign(key=1).merge(right.assign(key=1), on='key').drop('key', 1))
 
 
-def variations(df, column='T1', steps=np.linspace(-5, 5, num=100)):
+def variations(df, column, steps=np.linspace(-5, 5, num=100)):
     """ Expects a single row"""
     result = df.copy()
     variations = pd.DataFrame({column: steps})
@@ -83,21 +88,18 @@ def variations(df, column='T1', steps=np.linspace(-5, 5, num=100)):
     result = cartesian_product(result, variations)
     return result
 
-
-sensitivity_df = variations(test_cp.iloc[[focus_slider]])
+sensitivity_df = variations(test_cp.iloc[[focus_slider]], column=feature, steps=np.linspace(variation[0], variation[1], num=100))
 dl = learn.dls.test_dl(sensitivity_df)
-preds,  targets  = learn.get_preds(dl=dl)
+preds, targets = learn.get_preds(dl=dl)
 sensitivity_df['Appliances_pred'] = preds.numpy()
-
 
 def sens_chart(sensitivity_df):
     sens = alt.Chart(sensitivity_df).mark_line().encode(
-        x='T1',
+        x=feature,
         y=alt.Y('Appliances_pred'),
         # color=alt.Y('Appliances_pred', scale=alt.Scale(domain=(55,70)))
     )
     return sens
-
 
 
 def charts(focus):
