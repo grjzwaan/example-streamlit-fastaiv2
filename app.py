@@ -19,7 +19,7 @@ def prep():
     df['lights'] = df['lights'].astype(float)
     # Split into train, validation and test
     nr = df.shape[0]
-    s1 = math.floor(nr * 0.8)
+    s1 = math.floor(nr * 0.7)
     s2 = math.floor(nr * 0.9)
     data = df[:s2]
     valid_idx = list(range(s1, s2))
@@ -39,8 +39,8 @@ def train(data, valid_idx):
                   'T8', 'RH_8', 'T9', 'RH_9', 'T_out', 'Press_mm_hg', 'RH_out', 'Windspeed', 'Visibility', 'Tdewpoint'],
       procs=[Categorify, FillMissing, Normalize])
 
-    max_epochs = 200
-    learn = tabular_learner(dls, layers=[100, 100, 100, 50, 50], metrics=mse)
+    max_epochs = 10
+    learn = tabular_learner(dls, layers=[50, 50], metrics=mse)
     learn.fit_one_cycle(max_epochs)
 
     return learn
@@ -77,7 +77,8 @@ focus = chart_df.iloc[focus_slider]['date']
 
 def cartesian_product(left, right):
     return (
-       left.assign(key=1).merge(right.assign(key=1), on='key').drop('key', 1))
+       left.assign(key=1).merge(right.assign(key=1), on='key').drop('key', 1)
+    )
 
 
 def variations(df, column, steps=np.linspace(-5, 5, num=500)):
@@ -96,7 +97,7 @@ preds, targets = learn.get_preds(dl=dl)
 sensitivity_df['Appliances_pred'] = preds.numpy()
 
 def sens_chart(sensitivity_df):
-    sens = alt.Chart(sensitivity_df).mark_line().encode(
+    sens = alt.Chart(sensitivity_df).mark_line(color='green').encode(
         x=feature,
         y=alt.Y('Appliances_pred'),
         # color=alt.Y('Appliances_pred', scale=alt.Scale(domain=(55,70)))
@@ -113,10 +114,18 @@ def sens_chart(sensitivity_df):
 
 def charts(focus):
 
+    base = alt.Chart(test_cp).encode(
+        alt.X('date:T', axis=alt.Axis(title=None))
+    )
+
     energy = alt.Chart(chart_df).mark_line(point=True).encode(
-        x='date',
-        y='value',
+        alt.X('date:T'),
+        alt.Y('value', axis=alt.Axis(title="Energy")),
         color=alt.Color('variable', legend=alt.Legend(orient='bottom'))
+    )
+
+    ftr = base.mark_line(color='green').encode(
+        alt.Y(f'{feature}', axis=alt.Axis(title=feature), scale=alt.Scale(zero=False))
     )
 
     focus = alt.Chart(pd.DataFrame({'f': [focus]})).mark_rule(color='red', strokeWidth=3).encode(
@@ -124,7 +133,7 @@ def charts(focus):
         size=alt.value(3),
         color=alt.ColorValue('red')
     )
-    return energy + focus
+    return alt.layer(energy + focus, ftr).resolve_scale(y='independent')
 
 
 st.altair_chart(
